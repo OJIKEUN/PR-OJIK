@@ -35,9 +35,14 @@ class LocationController extends Controller
             'address' => 'nullable|string',
             'description' => 'nullable|string',
             'map_embed_url' => 'nullable|string',
-            'image' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048',
-            'is_active' => 'boolean',
+            'image' => 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'is_active' => 'nullable',
         ]);
+
+        // Handle is_active as boolean (comes as string from FormData)
+        if ($request->has('is_active')) {
+            $validated['is_active'] = filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN);
+        }
 
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('locations', 'public');
@@ -92,9 +97,14 @@ class LocationController extends Controller
             'address' => 'nullable|string',
             'description' => 'nullable|string',
             'map_embed_url' => 'nullable|string',
-            'image' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048',
-            'is_active' => 'boolean',
+            'image' => 'nullable|file|mimes:jpeg,png,jpg,gif,webp|max:5120',
+            'is_active' => 'nullable',
         ]);
+
+        // Handle is_active as boolean (comes as string from FormData)
+        if ($request->has('is_active')) {
+            $validated['is_active'] = filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN);
+        }
 
         if ($request->hasFile('image')) {
             // Delete old image if exists

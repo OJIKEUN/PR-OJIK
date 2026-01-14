@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 import { getPageBySlug } from '../services/api';
 import './StaticPage.css';
 
 const StaticPage = () => {
-  const { slug } = useParams();
+  const { slug: paramSlug } = useParams();
+  const location = useLocation();
+  
+  // Get slug from params or extract from pathname
+  const slug = paramSlug || location.pathname.replace('/', '');
+  
   const [page, setPage] = useState(null);
   const [loading, setLoading] = useState(true);
 

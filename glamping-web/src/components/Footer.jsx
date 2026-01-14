@@ -44,6 +44,7 @@ const Footer = () => {
           <div className="footer-section">
             <h4>Informasi</h4>
             <ul>
+              <li><Link to="/about">Tentang Kami</Link></li>
               <li><Link to="/terms">Syarat & Ketentuan</Link></li>
               <li><Link to="/policy">Kebijakan Penyewaan</Link></li>
               <li><Link to="/check-booking">Cek Status Booking</Link></li>

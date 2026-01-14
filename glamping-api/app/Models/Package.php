@@ -26,7 +26,6 @@ class Package extends Model
         'price_per_night' => 'decimal:2',
         'capacity' => 'integer',
         'facilities' => 'array',
-        'images' => 'array',
         'is_active' => 'boolean',
     ];
 
@@ -58,6 +57,51 @@ class Package extends Model
 
     public function getFirstImageAttribute()
     {
-        return $this->images[0] ?? null;
+        $images = $this->images;
+        return $images[0] ?? null;
+    }
+
+    /**
+     * Mutator: Encode images array to JSON when saving
+     */
+    public function setImagesAttribute($value)
+    {
+        $this->attributes['images'] = is_array($value) ? json_encode($value) : $value;
+    }
+
+    /**
+     * Transform images array to full URLs
+     */
+    public function getImagesAttribute($value)
+    {
+        // Handle both JSON string and already decoded array
+        if (is_string($value)) {
+            $images = json_decode($value, true) ?? [];
+        } else {
+            $images = $value ?? [];
+        }
+
+        // Get base URL with correct port from request context, or fallback to config
+        $baseUrl = request() ? request()->getSchemeAndHttpHost() : config('app.url');
+
+        return array_map(function ($image) use ($baseUrl) {
+            // If already a full URL, return as is
+            if (str_starts_with($image, 'http://') || str_starts_with($image, 'https://')) {
+                return $image;
+            }
+
+            // If it's a storage path (from new uploads like "packages/filename.jpg")
+            if (str_starts_with($image, 'packages/') || str_starts_with($image, 'locations/') || str_starts_with($image, 'galleries/')) {
+                return $baseUrl . '/storage/' . $image;
+            }
+
+            // For old relative paths like /images/packages/...
+            if (str_starts_with($image, '/')) {
+                return $baseUrl . $image;
+            }
+
+            // Fallback
+            return $baseUrl . '/storage/' . $image;
+        }, $images);
     }
 }

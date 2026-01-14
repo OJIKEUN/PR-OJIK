@@ -7,6 +7,7 @@ use App\Models\Package;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Storage;
 
 class PackageController extends Controller
 {
@@ -37,12 +38,34 @@ class PackageController extends Controller
             'short_description' => 'nullable|string|max:500',
             'price_per_night' => 'required|numeric|min:0',
             'capacity' => 'required|integer|min:1',
-            'facilities' => 'nullable|array',
-            'images' => 'nullable|array',
-            'is_active' => 'boolean',
+            'facilities' => 'nullable|string', // JSON string
+            'is_active' => 'nullable',
         ]);
 
         $validated['slug'] = Str::slug($validated['name']);
+
+        // Handle is_active as boolean
+        if ($request->has('is_active')) {
+            $validated['is_active'] = filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN);
+        }
+
+        // Handle facilities JSON
+        if ($request->has('facilities')) {
+            $validated['facilities'] = json_decode($request->input('facilities'), true) ?? [];
+        }
+
+        // Handle image uploads
+        $images = [];
+
+        // Process new image uploads - store relative paths only
+        if ($request->hasFile('new_images')) {
+            foreach ($request->file('new_images') as $file) {
+                $path = $file->store('packages', 'public');
+                $images[] = $path; // Store relative path only
+            }
+        }
+
+        $validated['images'] = $images;
 
         $package = Package::create($validated);
 
@@ -94,14 +117,59 @@ class PackageController extends Controller
             'short_description' => 'nullable|string|max:500',
             'price_per_night' => 'sometimes|numeric|min:0',
             'capacity' => 'sometimes|integer|min:1',
-            'facilities' => 'nullable|array',
-            'images' => 'nullable|array',
-            'is_active' => 'boolean',
+            'facilities' => 'nullable|string', // JSON string
+            'existing_images' => 'nullable|string', // JSON string of URLs to keep
+            'is_active' => 'nullable',
         ]);
 
         if (isset($validated['name'])) {
             $validated['slug'] = Str::slug($validated['name']);
         }
+
+        // Handle is_active as boolean
+        if ($request->has('is_active')) {
+            $validated['is_active'] = filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN);
+        }
+
+        // Handle facilities JSON
+        if ($request->has('facilities')) {
+            $validated['facilities'] = json_decode($request->input('facilities'), true) ?? [];
+        }
+
+        // Handle images
+        $images = [];
+
+        // Keep existing images - extract relative paths from full URLs
+        if ($request->has('existing_images')) {
+            $existingImages = json_decode($request->input('existing_images'), true) ?? [];
+            foreach ($existingImages as $existingUrl) {
+                // Extract relative path from URL
+                if (preg_match('/storage\/(.+)$/', $existingUrl, $matches)) {
+                    $images[] = $matches[1];
+                } elseif (preg_match('/packages\/[^/]+$/', $existingUrl, $matches)) {
+                    $images[] = $matches[0];
+                } else {
+                    // Keep as-is if can't parse (old format)
+                    $images[] = $existingUrl;
+                }
+            }
+        }
+
+        // Process new image uploads - store relative paths only
+        if ($request->hasFile('new_images')) {
+            foreach ($request->file('new_images') as $file) {
+                $path = $file->store('packages', 'public');
+                $images[] = $path; // Store relative path only
+            }
+        }
+
+        // Only update images if we have processed any
+        if ($request->has('existing_images') || $request->hasFile('new_images')) {
+            $validated['images'] = $images;
+        }
+
+        // Remove temporary validation fields
+        unset($validated['existing_images']);
 
         $package->update($validated);
 

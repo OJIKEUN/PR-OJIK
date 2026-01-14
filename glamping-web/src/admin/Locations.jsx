@@ -37,7 +37,6 @@ const Locations = () => {
       address: loc.address || '',
       description: loc.description || '',
       map_embed_url: loc.map_embed_url || '',
-      map_embed_url: loc.map_embed_url || '',
       image: null, // Keep existing unless changed
       is_active: loc.is_active ?? true
     });

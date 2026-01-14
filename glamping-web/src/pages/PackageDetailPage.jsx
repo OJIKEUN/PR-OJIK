@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { getPackageBySlug, getPackageAvailability, createReservation } from '../services/api';
+import { getPackageBySlug, getPackageAvailability, createReservation, getPageBySlug } from '../services/api';
 import './PackageDetailPage.css';
 
 const PackageDetailPage = () => {
@@ -21,6 +21,11 @@ const PackageDetailPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [bookingResult, setBookingResult] = useState(null);
   const [error, setError] = useState('');
+  
+  // Confirmation modal states
+  const [confirmationStep, setConfirmationStep] = useState(null); // null, 'details', 'terms'
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [termsContent, setTermsContent] = useState('');
 
   useEffect(() => {
     fetchPackage();
@@ -186,10 +191,47 @@ const PackageDetailPage = () => {
     return `${year}-${month}-${day}`;
   };
 
-  const handleSubmitBooking = async (e) => {
+  // Start confirmation flow (Step 1: Show booking details)
+  const handleStartConfirmation = (e) => {
     e.preventDefault();
     setError('');
+    setConfirmationStep('details');
+    // Fetch terms content
+    fetchTermsContent();
+  };
+
+  const fetchTermsContent = async () => {
+    try {
+      const [termsResponse, policyResponse] = await Promise.all([
+        getPageBySlug('terms'),
+        getPageBySlug('policy')
+      ]);
+      
+      let combinedContent = '';
+      if (termsResponse.success) {
+        combinedContent += termsResponse.data.content;
+      }
+      if (policyResponse.success) {
+        combinedContent += '<hr style="margin: 2rem 0; border: none; border-top: 1px solid #e5e7eb;" />' + policyResponse.data.content;
+      }
+      setTermsContent(combinedContent);
+    } catch (err) {
+      console.error('Error fetching terms:', err);
+    }
+  };
+
+  // Move to Step 2: Terms & Conditions
+  const handleConfirmDetails = () => {
+    setConfirmationStep('terms');
+    setTermsAgreed(false);
+  };
+
+  // Final submission after agreeing to terms
+  const handleFinalSubmit = async () => {
+    if (!termsAgreed) return;
+    
     setSubmitting(true);
+    setError('');
 
     try {
       const response = await createReservation({
@@ -201,17 +243,17 @@ const PackageDetailPage = () => {
 
       if (response.success) {
         setBookingResult(response.data);
+        setConfirmationStep(null);
       } else {
-        // Show detailed validation errors if available
         if (response.errors) {
           const errorMessages = Object.values(response.errors).flat().join(', ');
           setError(errorMessages || response.message);
         } else {
           setError(response.message || 'Booking gagal');
         }
+        setConfirmationStep(null);
       }
     } catch (err) {
-      // Show detailed validation errors from API response
       const errorData = err.response?.data;
       if (errorData?.errors) {
         const errorMessages = Object.values(errorData.errors).flat().join(', ');
@@ -219,9 +261,16 @@ const PackageDetailPage = () => {
       } else {
         setError(errorData?.message || 'Gagal membuat booking');
       }
+      setConfirmationStep(null);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Close confirmation modal
+  const handleCloseConfirmation = () => {
+    setConfirmationStep(null);
+    setTermsAgreed(false);
   };
 
   if (loading) {
@@ -398,7 +447,7 @@ const PackageDetailPage = () => {
                     {selectedDates.checkIn && selectedDates.checkOut ? 'Booking Sekarang' : 'Pilih Tanggal Dulu'}
                   </button>
                 ) : (
-                  <form className="booking-form" onSubmit={handleSubmitBooking}>
+                  <form className="booking-form" onSubmit={handleStartConfirmation}>
                     {error && <div className="error-message">{error}</div>}
                     <div className="form-group">
                       <label>Nama Lengkap</label>
@@ -463,6 +512,107 @@ const PackageDetailPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal - Step 1: Booking Details */}
+      {confirmationStep === 'details' && (
+        <div className="modal-overlay" onClick={handleCloseConfirmation}>
+          <div className="confirmation-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📋 Konfirmasi Detail Booking</h3>
+              <button className="modal-close" onClick={handleCloseConfirmation}>×</button>
+            </div>
+            <div className="modal-body">
+              <p className="modal-subtitle">Pastikan data berikut sudah benar sebelum melanjutkan.</p>
+              
+              <div className="confirm-details">
+                <div className="confirm-row">
+                  <span className="label">🏕️ Paket</span>
+                  <span className="value">{pkg.name}</span>
+                </div>
+                <div className="confirm-row">
+                  <span className="label">📅 Check-in</span>
+                  <span className="value">{selectedDates.checkIn?.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                </div>
+                <div className="confirm-row">
+                  <span className="label">📅 Check-out</span>
+                  <span className="value">{selectedDates.checkOut?.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                </div>
+                <div className="confirm-row">
+                  <span className="label">🌙 Durasi</span>
+                  <span className="value">{calculateNights()} malam</span>
+                </div>
+                <div className="confirm-divider"></div>
+                <div className="confirm-row">
+                  <span className="label">👤 Nama</span>
+                  <span className="value">{bookingData.guest_name}</span>
+                </div>
+                <div className="confirm-row">
+                  <span className="label">📧 Email</span>
+                  <span className="value">{bookingData.guest_email}</span>
+                </div>
+                <div className="confirm-row">
+                  <span className="label">📞 Telepon</span>
+                  <span className="value">{bookingData.guest_phone}</span>
+                </div>
+                <div className="confirm-row">
+                  <span className="label">👥 Jumlah Tamu</span>
+                  <span className="value">{bookingData.guests_count} orang</span>
+                </div>
+                {bookingData.notes && (
+                  <div className="confirm-row">
+                    <span className="label">📝 Catatan</span>
+                    <span className="value">{bookingData.notes}</span>
+                  </div>
+                )}
+                <div className="confirm-divider"></div>
+                <div className="confirm-row total">
+                  <span className="label">💰 Total Pembayaran</span>
+                  <span className="value">{formatPrice(calculateTotal())}</span>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={handleCloseConfirmation}>Kembali</button>
+              <button className="btn btn-primary" onClick={handleConfirmDetails}>Lanjutkan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal - Step 2: Terms & Conditions */}
+      {confirmationStep === 'terms' && (
+        <div className="modal-overlay" onClick={handleCloseConfirmation}>
+          <div className="confirmation-modal terms-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>📄 Syarat & Ketentuan</h3>
+              <button className="modal-close" onClick={handleCloseConfirmation}>×</button>
+            </div>
+            <div className="modal-body">
+              <p className="modal-subtitle">Harap baca dan setujui syarat & ketentuan berikut sebelum melanjutkan booking.</p>
+              <div className="terms-content" dangerouslySetInnerHTML={{ __html: termsContent || '<p>Memuat syarat & ketentuan...</p>' }} />
+              
+              <label className="terms-checkbox">
+                <input 
+                  type="checkbox" 
+                  checked={termsAgreed} 
+                  onChange={(e) => setTermsAgreed(e.target.checked)} 
+                />
+                <span>Saya telah membaca dan menyetujui <strong>Syarat & Ketentuan</strong> yang berlaku.</span>
+              </label>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setConfirmationStep('details')}>Kembali</button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleFinalSubmit}
+                disabled={!termsAgreed || submitting}
+              >
+                {submitting ? 'Memproses...' : 'Setuju & Booking'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

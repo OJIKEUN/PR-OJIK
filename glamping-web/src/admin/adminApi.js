@@ -54,10 +54,14 @@ export const getAdminPackage = (id) =>
   adminApi.get(`/packages/${id}`).then((res) => res.data);
 
 export const createPackage = (data) => 
-  adminApi.post('/packages', data).then((res) => res.data);
+  adminApi.post('/packages', data, {
+    headers: { 'Content-Type': undefined }
+  }).then((res) => res.data);
 
 export const updatePackage = (id, data) => 
-  adminApi.put(`/packages/${id}`, data).then((res) => res.data);
+  adminApi.post(`/packages/${id}`, data, {
+    headers: { 'Content-Type': undefined }
+  }).then((res) => res.data);
 
 export const deletePackage = (id) => 
   adminApi.delete(`/packages/${id}`).then((res) => res.data);
